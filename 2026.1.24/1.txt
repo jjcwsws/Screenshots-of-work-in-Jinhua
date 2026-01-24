@@ -1,0 +1,600 @@
+
+开新终端运行：source ~/linorobot2_ws/install/setup.bash
+
+source /opt/ros/humble/setup.bash
+source ~/linorobot2_ws/install/setup.bash
+
+  选择性考虑：colcon build --symlink-install
+
+
+工作空间编译运行：
+
+cd ~/linorobot2_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+或者：
+cd ~/linorobot2_ws
+rm -rf build/ install/ log/
+colcon build --symlink-install
+source install/setup.bash
+
+
+
+
+现在都开终端并运行了，可以在四个终端四步走了:
+
+        启动 Gazebo 仿真环境(如果启动失败，考虑是不是还有别的 gazebo进程，杀掉进程：pkill -f gzserver  pkill -f gzclient  pkill -f gazebo)
+
+ros2 launch linorobot2_gazebo gazebo.launch.py urdf:=/tmp/robot.urdf
+ros2 launch linorobot2_gazebo gazebo.launch.py urdf:=/tmp/robot.urdf
+
+        启动 SLAM
+ros2 launch slam_toolbox online_async_launch.py
+
+        启动 Teleop（键盘控制）
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+        在 Rviz 里查看地图
+ros2 run rviz2 rviz2
+
+        完整的 Nav2 启动应该这样：
+
+                清理之前的进程
+ros2 daemon stop
+ros2 daemon star
+                启动完整的navigation系统（它会自动激活所有节点）
+ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true
+
+
+
+
+
+2026.1.24新步骤：
+
+        1.开四五个新终端     
+cd ~/linorobot2_ws
+source ~/linorobot2_ws/install/setup.bash
+选择性考虑：colcon build --symlink-install
+
+
+        2.新开gazebo
+ros2 launch linorobot2_gazebo gazebo.launch.py urdf:=/tmp/robot.urdf
+
+
+        3.启动地图服务器（使用map.yaml）
+ros2 run nav2_map_server map_server --ros-args \
+    -p yaml_filename:=/home/jt/linorobot2_ws/src/linorobot2/linorobot2_navigation/maps/map.yaml \
+    -p use_sim_time:=true
+
+
+        4.启动AMCL
+ros2 launch nav2_bringup localization_launch.py \
+    use_sim_time:=true \
+    map:=/home/jt/linorobot2_ws/src/linorobot2/linorobot2_navigation/maps/map.yaml
+
+
+        5.直接使用Nav2的RViz配置（已经正确配置了地图）
+ros2 launch nav2_bringup rviz_launch.py
+
+
+        6.启动完整的navigation系统（它会自动激活所有节点）
+ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true
+
+
+
+
+GITHUB推送指南:
+
+	1.# 进入项目目录
+cd ~/history_ros
+
+	2.1 # 添加当前目录下所有【已跟踪文件】的更新 (包括日志、代码等，但不会添加.gitignore里指定的新文件)
+git add -u
+
+	2.2.# 或者，明确添加日志文件和其他你关心的文件
+git add terminal_logs/command_history.log .gitignore
+
+	2.3 #添加有变动的日志文件 (比 `git add -u` 更精准)
+git add terminal_logs/command_history.log
+
+	3.# 然后提交
+git commit -m "docs: 更新终端命令历史"
+
+	4.完成上传：推送到GitHub
+
+git push origin main
+
+
+
+
+每日例行检查:
+
+	新开终端，准备编译运行前
+source /opt/ros/foxy/setup.bash
+source ~/ros2_ws/install/setup.bash
+	或者
+echo $ROS_DISTRO
+	结果必须是：
+foxy
+
+
+
+
+	编译两板斧:
+colcon build
+source ~/.bashrc
+ros2 launch linorobot2_gazebo gazebo.launch.py
+
+
+
+
+	查看ros2分支:
+source ~/.bashrc
+cd ~/ros2_ws/src/linorobot2   or     cd ~/linorobot2_ws/src/linorobot2  
+git branch
+	* humble
+    	  jazzy
+
+
+        查看ubuntu版本：
+lsb_release -a
+
+
+
+
+
+
+
+        下载并安装Gazebo及Gazebo_models:
+
+sudo apt update
+sudo apt install ros-humble-gazebo-ros-pkgs ros-humble-gazebo-ros
+gazebo --version
+        
+
+
+mkdir -p ~/.gazebo/models
+ls -lh ~/.gazebo/models
+cd ~/.gazebo/models
+git clone https://github.com/osrf/gazebo_models
+cp -r gazebo_models/* ~/.gazebo/models/
+
+
+
+
+        离线下载的gazebo_models-master移动到Gazebo_models后，执行以下命令：
+        模型移到上一级：
+
+mv ~/.gazebo/models/gazebo_models-master/* ~/.gazebo/models/
+rm -rf ~/.gazebo/models/gazebo_models-master
+
+
+
+
+export LIBGL_ALWAYS_SOFTWARE=1
+ros2 launch linorobot2_gazebo gazebo.launch.py
+
+
+
+sudo rosdep init
+rm -rf ~/.ros/rosdep
+rosdep update
+
+
+
+
+export LIBGL_ALWAYS_SOFTWARE=1
+gazebo   # 或你的 launch 命令
+
+
+
+
+
+git remote remove origin
+git remote add origin git@github.com:jjcwsws/Mobile-Aloha-re.git
+
+ 
+
+sudo apt update
+sudo apt upgrade
+
+
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update
+
+sudo apt install curl gnupg lsb-release
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | \
+sudo tee /etc/apt/sources.list.d/ros2.list
+
+
+
+sudo apt update
+sudo apt install ros-foxy-desktop
+
+
+echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+
+ros2 run demo_nodes_cpp talker
+
+ros2 run demo_nodes_cpp talker
+
+
+
+sudo apt install gazebo11 libgazebo11-dev
+
+gazebo
+
+
+
+
+
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws
+sudo apt update
+sudo apt install python3-colcon-common-extensions
+colcon build
+echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+
+
+cd ~/ros2_ws/src
+git clone -b foxy https://github.com/linorobot/linorobot2.git
+
+cd ~/ros2_ws
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+
+colcon build
+source install/setup.bash
+
+ros2 launch linorobot2_gazebo gazebo.launch.py
+
+
+
+
+
+
+
+ros2 launch linorobot2_gazebo diffbot.launch.py
+
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+
+
+
+
+
+
+
+git config --global user.name "Xianen Ling"
+git config --global user.email "3326288718@qq.com"
+
+
+git remote add origin git@github.com:jjcwsws/Mobile-Aloha.git
+git remote rm origin
+git remote add origin git@github.com:jjcwsws/Mobile-Aloha-re.git
+
+git remote set-url origin git@github.com:jjcwsws/Mobile-Aloha-re.git
+
+sudo apt update
+sudo apt install ros-foxy-robot-localization
+
+ros2 launch gazebo_ros gazebo.launch.py world:=/home/yan/ros2_ws/install/linorobot2_gazebo/share/linorobot2_gazebo/worlds/playground.world
+
+
+
+
+
+
+
+
+# 创建工作空间
+mkdir -p ~/linorobot2_ws/src
+cd ~/linorobot2_ws/src
+
+# 克隆你的机器人包（假设 linorobot2）
+git clone https://github.com/your_org/linorobot2.git
+
+# 返回工作空间根目录
+cd ~/linorobot2_ws
+
+
+
+cd ~/linorobot2_ws
+source install/setup.bash
+
+ros2 launch linorobot2_gazebo gazebo.launch.py
+
+
+
+
+
+
+
+
+Gazebo 默认会读取 ~/.gazebo/models 下的模型，但你的模型在 gazebo_models-master 里。为了保证 ROS2 可以找到模型，需要设置环境变量：
+
+export GAZEBO_MODEL_PATH=~/.gazebo/models/gazebo_models-master:$GAZEBO_MODEL_PATH
+
+
+测试：
+
+echo $GAZEBO_MODEL_PATH
+
+
+应该能看到你刚刚添加的路径。
+
+如果你希望每次开虚拟机都自动生效，可以加到 ~/.bashrc：
+
+echo 'export GAZEBO_MODEL_PATH=~/.gazebo/models/gazebo_models-master:$GAZEBO_MODEL_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+
+
+        大致流程如下：
+
+Ubuntu 22.04 + ROS 2 Humble
+
+创建ros工作空间 + 下载 Linorobot2
+
+安装 Gazebo + 离线 Gazebo 模型
+
+编译工作空间
+
+安装 slam_toolbox + 其他依赖（Teleop, Rviz）
+
+启动仿真 → 启动 SLAM → 启动 Teleop → 查看 Rviz
+
+可选：Navigation 2
+
+
+
+
+
+
+
+
+
+# 启动生命周期管理器，它会自动配置和激活所有节点
+ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args \
+    -p node_names:="['map_server', 'amcl', 'controller_server', 'planner_server', 'behavior_server', 'bt_navigator']" \
+    -p autostart:=true \
+    -p use_sim_time:=true
+
+
+
+
+
+
+
+
+
+
+
+
+cd ~/linorobot2_ws
+colcon build --symlink-install
+source install/setup.bash
+ros2 run robot_state_publisher robot_state_publisher /tmp/robot.urdf
+ros2 launch linorobot2_gazebo gazebo.launch.py urdf:=/tmp/robot.urdf
+
+
+
+
+
+echo "4dw:"
+grep -i "robot name" /tmp/test_final.urdf
+
+
+
+
+打开rviz配置过程可能遇到map中有cannot received map问题：
+
+方法一：
+# 终端1：启动地图服务器
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:="/opt/ros/humble/share/nav2_bringup/maps/turtlebot3_world.yaml"
+# 终端1：启动地图服务器（使用linorobot2的地图）
+ros2 run nav2_map_server map_server --ros-args \
+    -p yaml_filename:="/home/jt/linorobot2_ws/src/linorobot2/linorobot2_navigation/maps/map.yaml" \
+    -p use_sim_time:=true  # 如果是真实机器人用false，仿真用true
+
+# 终端2：启动RViz
+ros2 run rviz2 rviz2
+
+
+
+方法二：
+使用 Nav2 自带的 RViz 配置
+
+# 直接使用Nav2的RViz配置（已经正确配置了地图）
+ros2 launch nav2_bringup rviz_launch.py
+
+
+
+
+
+
+
+
+
+
+
+
+
+ros2 run xacro xacro ~/linorobot2_ws/src/linorobot2/linorobot2_description/urdf/robots/4dw.urdf.xacro > /tmp/robot.urdf
+
+
+ros2 run xacro xacro ~/linorobot2_ws/src/linorobot2/linorobot2_description/urdf/robots/4wd.urdf.xacro > /tmp/robot.urdf
+
+
+
+
+  </gazebo>
+  <gazebo>
+    <plugin filename="libgazebo_ros_diff_drive.so" name="differential_drive_controller">
+      <ros>
+        <remapping>odom:=odom/unfiltered</remapping>
+      </ros>
+      <num_wheel_pairs>2</num_wheel_pairs>
+      <left_joint>front_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint>
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+      <wheel_separation>0.271</wheel_separation>
+      <wheel_separation>0.271</wheel_separation>
+      <wheel_diameter>0.14324</wheel_diameter>
+      <wheel_diameter>0.14324</wheel_diameter>
+      <updateRate>100</updateRate>
+      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>false</publish_odom_tf>
+      <publish_wheel_tf>true</publish_wheel_tf>
+      <odometry_frame>odom</odometry_frame>
+    </plugin>
+  </gazebo>
+</robot>
+
+
+
+
+
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="imu">
+    <link name="imu_link"/>
+    
+    <joint name="imu_to_base_link" type="fixed">
+      <parent link="base_link"/>
+      <child link="imu_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <gazebo reference="imu_link">
+      <gravity>true</gravity>
+      <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>20</update_rate>
+      <visualize>true</visualize>
+      <topic>__default_topic__</topic>
+      <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
+          <ros>
+            <remapping>~/out:=imu/data</remapping>
+          </ros>
+          <topicName>imu/data</topicName>
+          <bodyName>imu_link</bodyName>
+          <updateRateHZ>10.0</updateRateHZ>
+          <gaussianNoise>0.0</gaussianNoise>
+          <xyzOffset>0 0 0</xyzOffset>
+          <rpyOffset>0 0 0</rpyOffset>
+          <frameName>imu_link</frameName>
+          <initialOrientationAsReference>false</initialOrientationAsReference>
+      </plugin>
+      <pose>0 0 0 0 0 0</pose>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+</robot>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<?xml version="1.0"?>
+<robot name="linorobot2_4wd" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find linorobot2_description)/urdf/4wd_properties.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/mech/base.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/mech/wheel.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/sensors/imu.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/sensors/generic_laser.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/sensors/depth_sensor.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/sensors/camera.urdf.xacro" />
+  <xacro:include filename="$(find linorobot2_description)/urdf/controllers/skid_steer.urdf.xacro" />
+
+  <xacro:base 
+    length="${base_length}" 
+    width="${base_width}" 
+    height="${base_height}" 
+    mass="${base_mass}"
+    wheel_radius="${wheel_radius}"
+    wheel_pos_z="${wheel_pos_z}"
+  />
+
+  <!-- Front Left Wheel -->
+  <xacro:wheel 
+    side="front_left"
+    radius="${wheel_radius}" 
+    width="${wheel_width}" 
+    pos_x="${wheel_pos_x}" 
+    pos_y="${wheel_pos_y}" 
+    pos_z="${wheel_pos_z}" 
+    mass="${wheel_mass}"
+  />
+
+  <!-- Front Right Wheel -->
+  <xacro:wheel 
+    side="front_right"
+    radius="${wheel_radius}" 
+    width="${wheel_width}" 
+    pos_x="${wheel_pos_x}" 
+    pos_y="${-wheel_pos_y}" 
+    pos_z="${wheel_pos_z}" 
+    mass="${wheel_mass}"
+  />
+
+  <!-- Rear Left Wheel -->
+  <xacro:wheel 
+    side="rear_left"
+    radius="${wheel_radius}" 
+    width="${wheel_width}" 
+    pos_x="${-wheel_pos_x}" 
+    pos_y="${wheel_pos_y}" 
+    pos_z="${wheel_pos_z}" 
+    mass="${wheel_mass}"
+  />
+
+  <!-- Rear Right Wheel -->
+  <xacro:wheel 
+    side="rear_right"
+    radius="${wheel_radius}" 
+    width="${wheel_width}" 
+    pos_x="${-wheel_pos_x}" 
+    pos_y="${-wheel_pos_y}" 
+    pos_z="${wheel_pos_z}" 
+    mass="${wheel_mass}"
+  />
+
+  <!-- IMU -->
+  <xacro:imu parent="base_link" xyz="0 0 0" rpy="0 0 0"/>
+
+  <!-- Laser -->
+  <xacro:generic_laser parent="base_link" prefix="front" xyz="0.18 0 0.06" rpy="0 0 0"/>
+
+  <!-- Skid Steer Controller -->
+  <xacro:skid_steer 
+    front_left_wheel="front_left_wheel_joint"
+    front_right_wheel="front_right_wheel_joint"
+    rear_left_wheel="rear_left_wheel_joint"
+    rear_right_wheel="rear_right_wheel_joint"
+  />
+
+</robot>
+
+
+
+
