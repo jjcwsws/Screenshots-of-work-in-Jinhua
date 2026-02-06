@@ -1,0 +1,466 @@
+重要修改：sudo nano /boot/firmware/cmdline.txt
+原本内容：console=serial0,115200 multipath=off dwc_otg.lpm_enable=0 console=tty1 root=LABEL=writable rootfstype=ext4 rootwait fixrtc cfg80211.ieee80211_regdom=
+
+
+修改：sudo nano /boot/firmware/config.txt
+
+原本内容：
+max_framebuffers=2
+arm_boost=1
+
+[all]
+# Enable the audio output, I2C and SPI interfaces on the GPIO header. As these
+# parameters related to the base device-tree they must appear *before* any
+# other dtoverlay= specification
+dtparam=audio=on
+dtparam=i2c_arm=on
+dtparam=spi=on
+
+# Comment out the following line if the edges of the desktop appear outside
+# the edges of your display
+disable_overscan=1
+
+# If you have issues with audio, you may try uncommenting the following line
+# which forces the HDMI output into HDMI mode instead of DVI (which doesn't
+# support audio output)
+#hdmi_drive=2
+
+# Enable the serial pins
+enable_uart=1
+
+# Autoload overlays for any recognized cameras or displays that are attached
+# to the CSI/DSI ports. Please note this is for libcamera support, *not* for
+# the legacy camera stack
+camera_auto_detect=1
+display_auto_detect=1
+
+# Config settings specific to arm64
+arm_64bit=1
+dtoverlay=dwc2
+
+[cm4]
+# Enable the USB2 outputs on the IO board (assuming your CM4 is plugged into
+# such a board)
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+
+
+
+
+
+
+
+sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer
+sudo systemctl disable apt-daily.timer apt-daily-upgrade.timer unattended-upgrades
+
+
+
+sudo sed -i '/^[^#]*ClientAliveInterval/d; /^[^#]*ClientAliveCountMax/d' /etc/ssh/sshd_config && echo -e "ClientAliveInterval 60\nClientAliveCountMax 3" | sudo tee -a /etc/ssh/sshd_config && sudo systemctl restart ssh
+
+
+sudo reboot
+
+systemctl list-timers | grep -E "(apt-daily|apt-upgrade)"  # 应该查询不到任何激活的计时器
+
+
+
+
+
+
+目前用不到图形化界面所以远程连接没有用：
+sudo apt-get update
+sudo apt-get install xrdp
+sudo systemctl status xrdp
+
+
+
+[Match]
+Name=eth0 # 有线网卡名，也可能是en开头的，如ens33
+
+[Network]
+Address=192.168.1.100/24 # 你想要的静态IP和子网掩码(/24=255.255.255.0)
+Gateway=192.168.1.1 # 你在“配置前”步骤获取的网关地址
+DNS=192.168.1.1 # 你获取的DNS地址，或使用公共DNS如8.8.8.8
+
+
+
+
+
+
+
+
+
+
+
+
+一、你现在的系统边界（先对齐认知）
+
+当前阶段 不需要 ROS2，否则会把问题复杂化。
+
+你现在要验证的是：
+
+笔记本（虚拟机） → USB 串口 → STM32 → CAN → 小米电机 → 轮子转
+
+所以这是一个纯串口控制链路验证。
+
+二、物理连接你应该是这样的（再确认一次）
+1️⃣ STM32 ↔ 笔记本
+
+STM32 的 Type-C 接口
+
+一根 USB 线插到笔记本（或虚拟机映射）
+
+STM32 会在系统里表现为：
+
+/dev/ttyACM0
+# 或
+/dev/ttyUSB0
+
+2️⃣ STM32 ↔ CAN 模块 ↔ 四个 CyberGear
+
+你已经完成 ✔
+（CAN_H / CAN_L / 120Ω 终端）
+
+三、笔记本上你需要准备什么（只做 3 件事）
+✅ 1. 找到 STM32 的串口设备
+
+在虚拟机终端执行：
+
+ls /dev/tty*
+
+
+插拔一次 STM32，再执行：
+
+ls /dev/tty*
+
+
+新出现的那个就是 STM32，例如：
+
+/dev/ttyACM0
+
+
+记住这个名字。
+
+✅ 2. 安装串口工具（必须）
+
+我推荐你先用 minicom，最稳：
+
+sudo apt update
+sudo apt install minicom
+
+
+（可选：screen / cutecom，但 minicom 足够）
+
+✅ 3. 打开串口（关键）
+sudo minicom -D /dev/ttyACM0 -b 115200
+
+
+⚠️ 115200 必须和你 STM32 程序里 UART 波特率一致
+（如果你用的是 9600 / 921600，要改）
+
+进入后你会看到一个黑窗口，这就是你和 STM32 的“对话窗口”。
+
+四、你现在要发送什么“指令”（重点）
+
+这一步 完全取决于你 STM32 程序里写了什么串口协议。
+
+我结合你之前发过的代码，给你一个现实中最常见、你很可能已经有的情况：
+
+情况 A（最常见）：STM32 用的是「单字符控制」
+
+你 STM32 代码里大概率有类似：
+
+if (rx_data == 'w') 前进
+if (rx_data == 's') 后退
+if (rx_data == 'a') 左转
+if (rx_data == 'd') 右转
+if (rx_data == 'x') 停止
+
+那你在 minicom 里直接按键：
+w   → 四轮前进
+s   → 四轮后退
+a   → 左转
+d   → 右转
+x   → 停
+
+
+⚠️ 注意：
+
+不要按回车
+
+是直接按字母
+
+情况 B：STM32 用的是字符串指令（带回车）
+
+比如：
+
+"FWD\n"
+"BACK\n"
+"STOP\n"
+
+
+那你在 minicom 里输入：
+
+FWD
+
+
+然后 回车
+
+情况 C（更高级）：速度指令
+
+比如你程序里有：
+
+V 100 100 100 100\n
+
+
+那你在 minicom 输入：
+
+V 100 100 100 100
+
+🔴 如果你不确定是哪种
+
+👉 马上做一件事：
+
+在 STM32 串口接收回调里加一句：
+
+printf("RX: %c\r\n", rx_data);
+
+
+这样你在 minicom 里能看到 STM32 收到了什么。
+
+五、完整“最小成功闭环”（你照这个顺序）
+Step 1
+sudo minicom -D /dev/ttyACM0 -b 115200
+
+Step 2
+
+确认 STM32 上电后：
+
+CAN 初始化完成
+
+四个电机已 enable
+
+（CyberGear 不 enable 是不会动的）
+
+Step 3
+
+在 minicom 中按：
+
+w
+
+Step 4
+
+观察：
+
+电机是否鸣叫 / 轻微抖动
+
+是否有一个轮子先动
+
+六、如果「完全不动」，你按这个顺序排错
+① 串口有没有数据？
+
+STM32 串口里打印：
+
+printf("hello\r\n");
+
+
+minicom 能不能看到？
+
+② STM32 收到指令了吗？
+printf("rx=%c\r\n", rx_data);
+
+③ CAN 发出去了吗？
+
+在 CAN_Tx 后打点（LED 或 printf）
+
+④ CyberGear ID 对吗？
+
+你之前设置的：
+
+ID = 1 / 2 / 3 / 4
+
+
+和程序里完全一致？
+
+七、你下一步该干什么（路线图）
+
+✔ 当前阶段目标（现在）
+
+用 minicom 控制四轮跑起来
+
+✔ 下一阶段（你马上会问）
+
+用 ROS2 cmd_vel → STM32
+
+✔ 再下一阶段
+
+Nav2 自动导航
+
+
+
+
+
+
+
+
+
+四、一步一步：在树莓派上跑 keyboard_uart.py
+📍 前提确认（你已经满足）
+
+Xshell 已经 ssh 登录进树莓派
+
+STM32 通过 UART 接到树莓派
+
+设备是 /dev/ttyAMA0
+
+① 在树莓派上新建脚本
+
+在 Xshell 终端里敲：
+
+cd ~
+nano keyboard_uart.py
+
+② 粘贴这个【最小可用】脚本（不要改）
+import serial
+import sys
+import termios
+import tty
+
+ser = serial.Serial(
+    port='/dev/ttyAMA0',
+    baudrate=115200,
+    timeout=0.1
+)
+
+print("Press keys (w/a/s/d/x), Ctrl+C to exit")
+
+fd = sys.stdin.fileno()
+old_settings = termios.tcgetattr(fd)
+
+try:
+    tty.setraw(fd)
+    while True:
+        ch = sys.stdin.read(1)
+        if ch:
+            ser.write(ch.encode())
+            print(f"send: {ch}")
+except KeyboardInterrupt:
+    pass
+finally:
+    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    ser.close()
+
+
+保存：
+
+Ctrl + O
+
+回车
+
+Ctrl + X
+
+③ 给脚本执行权限
+chmod +x keyboard_uart.py
+
+④ 运行脚本（重点）
+python3 keyboard_uart.py
+
+
+⚠️ 注意：
+
+不是双击
+
+不是在 Windows 跑
+
+就是在 Xshell 这个窗口
+
+⑤ 按键测试
+
+在这个终端里直接按：
+
+w
+a
+s
+d
+x
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 测试网络连通性
+ping -c 4 8.8.8.8
+
+# 测试域名解析
+nslookup mirrors.aliyun.com
+
+
+
+/dev/ttyAMA0
+sudo chmod 666 /dev/ttyAMA0
+
+
+
+nano ~/keyboard_uart.py
+
+
+
+ps aux | grep keyboard_uart.py
+kill -9 <pid>
+
+
+
+import serial
+
+ser = serial.Serial(
+    port='/dev/ttyAMA0',
+    baudrate=115200,
+    timeout=1
+)
+
+print("Type a character and press Enter (Ctrl+C to exit)")
+
+try:
+    while True:
+        s = input("> ")
+        if not s:
+            continue
+
+        ch = s[0]          # 只取第一个字符
+        ser.write(ch.encode())
+        print(f"send: {ch}")
+
+        data = ser.read(1)
+        if data:
+            print(f"recv: {data.decode(errors='ignore')}")
+        else:
+            print("recv: <nothing>")
+except KeyboardInterrupt:
+    print("\nExit")
+finally:
+    ser.close()
+
+
+python3 keyboard_uart.py
+
+
+
+
+cat /dev/ttyAMA0
+echo "hello" > /dev/ttyAMA0
+
+
+# 配置串口（如果未启用，需先在 raspi-config 中启用）
+stty -F /dev/ttyAMA0 115200
+# 测试回环
+echo "test" > /dev/ttyAMA0
+cat < /dev/ttyAMA0

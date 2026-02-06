@@ -1,0 +1,112 @@
+目标：用笔记本（虚拟机） + USB-TTL 直接连接 STM32
+只实现最基础功能：键盘（WASD/X）控制小车前进/后退/左转/右转/停止
+STM32 程序：只能接收 cmd_vel 对应的帧（0xAA + 4字节速度 + 0x55），收到后驱动电机
+不需要：里程计（odometry_node.py）、launch 文件、编码器反馈
+
+✅ 你只需要改这两个文件：
+
+serial_node.py（核心，必须改）
+setup.py（确保 serial_node 可运行）
+
+odometry_node.py 和 nav_launch.py 可以完全不动（先不使用）。
+第一步：确认你的 USB-TTL 串口名
+在笔记本虚拟机里运行：
+ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+通常会看到：
+
+/dev/ttyUSB0 （最常见）
+/dev/ttyACM0
+
+记下正确的名字（比如 /dev/ttyUSB0）
+第二步：修改 serial_node.py（简化版，只做发送）
+cd ~/linorobot2_ws/src/my_robot_bringup/my_robot_bringup/nodes
+nano serial_node.py
+把整个文件替换成下面这个简化版（只保留发送功能，删除读取编码器部分）：
+Python#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+import serial
+
+class SerialNode(Node):
+    def __init__(self):
+        super().__init__('serial_node')
+        
+        # ========== 修改这里：你的实际串口名 ==========
+        self.declare_parameter('serial_port', '/dev/ttyUSB0')   # ← 改成你 ls 看到的串口
+        self.declare_parameter('baudrate', 115200)
+        
+        port = self.get_parameter('serial_port').value
+        baud = self.get_parameter('baudrate').value
+        
+        try:
+            self.ser = serial.Serial(port, baud, timeout=0.1)
+            self.get_logger().info(f"✅ 串口打开成功：{port} @ {baud}")
+        except Exception as e:
+            self.get_logger().error(f"❌ 串口打开失败：{e}")
+            rclpy.shutdown()
+            return
+
+        # 订阅键盘发出的 /cmd_vel
+        self.cmd_vel_sub = self.create_subscription(
+            Twist, '/cmd_vel', self.cmd_vel_callback, 10)
+
+    def cmd_vel_callback(self, msg):
+        linear = max(-1.0, min(1.0, msg.linear.x))
+        angular = max(-1.0, min(1.0, msg.angular.z))
+
+        # 映射为 16位无符号整数（-1 → 0, 0 → 32768, 1 → 65535）
+        linear_u16 = int((linear + 1.0) / 2.0 * 65535)
+        angular_u16 = int((angular + 1.0) / 2.0 * 65535)
+
+        # 拆分高低字节
+        linear_high = (linear_u16 >> 8) & 0xFF
+        linear_low  = linear_u16 & 0xFF
+        angular_high = (angular_u16 >> 8) & 0xFF
+        angular_low  = angular_u16 & 0xFF
+
+        # STM32 要求的帧格式
+        frame = bytes([0xAA, linear_high, linear_low, angular_high, angular_low, 0x55])
+
+        try:
+            self.ser.write(frame)
+            self.get_logger().info(f"发送 → STM32: {frame.hex()} | v={linear:.2f} wz={angular:.2f}")
+        except Exception as e:
+            self.get_logger().error(f"发送失败: {e}")
+
+    def destroy_node(self):
+        if hasattr(self, 'ser') and self.ser.is_open:
+            self.ser.close()
+        super().destroy_node()
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = SerialNode()
+    rclpy.spin(node)
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+保存退出。
+第三步：修改 setup.py
+cd ~/linorobot2_ws/src/my_robot_bringup
+nano setup.py
+在 entry_points 里确保有这一行：
+Python'console_scripts': [
+    'serial_node = my_robot_bringup.nodes.serial_node:main',
+],
+第四步：构建并运行
+cd ~/linorobot2_ws
+colcon build --packages-select my_robot_bringup
+source install/setup.bash
+ros2 run my_robot_bringup serial_node
+如果看到：
+text串口打开成功：/dev/ttyUSB0 @ 115200
+→ 成功！
+然后新开一个终端运行键盘：
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+按 w/a/s/d/x 测试小车是否动。
+请告诉我：
+
+你 ls /dev/tty* 看到的是哪个串口名？（比如 ttyUSB0）
+运行 ros2 run my_robot_bringup serial_node 后的日志
